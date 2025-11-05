@@ -13,7 +13,7 @@ Aplikasi ini dibuat untuk mempelajari bagaimana teknologi deepfake bekerja dalam
 ## 🌐 URL Aplikasi Live
 
 Aplikasi ini dapat dijalankan secara online melalui:  
-🔗 **[Cloning Face & Voice Simulation - Netlify](cloningfaceandvoice.netlify.app)**  
+🔗 **http://cloningfaceandvoice.netlify.app/**  
 
 ## 💻 Petunjuk Penggunaan Aplikasi
 
