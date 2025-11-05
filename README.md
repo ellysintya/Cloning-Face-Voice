@@ -9,3 +9,8 @@ Aplikasi ini dibuat untuk mempelajari bagaimana teknologi deepfake bekerja dalam
 | 1  | Christine Gleania      | 221110164   |
 | 2  | Elly Sintya            | 221112074   |
 | 3  | Hanssen Halim          | 221110190   |
+
+## 🌐 URL Aplikasi Live
+
+Aplikasi ini dapat dijalankan secara online melalui:  
+🔗 **[Cloning Face & Voice Simulation - Netlify](cloningfaceandvoice.netlify.app)**  
