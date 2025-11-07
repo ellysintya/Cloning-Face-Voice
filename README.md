@@ -23,4 +23,4 @@ untuk mengintalasi dilokal hanya perlu :
 2. buka vscode dan lakukan debug
 
 ## 🌐 URL Demo Aplikasi
-https://mikroskilacid-my.sharepoint.com/:f:/g/personal/221110164_students_mikroskil_ac_id/EjwhuPKKDZxGi-bNSQ5XOyEBGRu0AcbaJ_FLksxDJ-JxOA?e=k4VYdm
+🔗 https://mikroskilacid-my.sharepoint.com/:f:/g/personal/221110164_students_mikroskil_ac_id/EjwhuPKKDZxGi-bNSQ5XOyEBGRu0AcbaJ_FLksxDJ-JxOA?e=k4VYdm
