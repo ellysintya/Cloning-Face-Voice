@@ -20,4 +20,7 @@ Aplikasi ini memiliki 2 fitur yaitu face filter dan voice cloning dimana dibagia
 ## ⚙️ Petunjuk Instalasi dan Menjalankan Proyek di Lokal
 untuk mengintalasi dilokal hanya perlu :
 1. pull yang code di github
-2. buka vscode dan lakukan debug 
+2. buka vscode dan lakukan debug
+
+## 🌐 URL Demo Aplikasi
+https://mikroskilacid-my.sharepoint.com/:f:/g/personal/221110164_students_mikroskil_ac_id/EjwhuPKKDZxGi-bNSQ5XOyEBGRu0AcbaJ_FLksxDJ-JxOA?e=k4VYdm
