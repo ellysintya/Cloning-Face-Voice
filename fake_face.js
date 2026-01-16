@@ -5,11 +5,9 @@
         let audioChunks = [];
         let audioContext = null;
         let analyser = null;
-        let currentFilter = 'none';
         let currentVoiceEffect = 'normal';
         let faceDetectionActive = false;
         let detectedFaces = [];
-        let animationFrameId = null;
 
         let isAIReady = false;
         let currentEmotions = {
@@ -533,515 +531,539 @@
             
             return totalPixels > 0 ? darkPixels / totalPixels : 0;
         }
-        
-        function combineFaceDetections(skinRegions, faceShapes, eyeRegions) {
-            const allDetections = [...skinRegions, ...faceShapes, ...eyeRegions];
-            const combinedFaces = [];
-            
-            for (let i = 0; i < allDetections.length; i++) {
-                const detection = allDetections[i];
-                let merged = false;
-                
-                for (let j = 0; j < combinedFaces.length; j++) {
-                    const existing = combinedFaces[j];
-                    const distance = Math.sqrt(
-                        Math.pow(detection.x - existing.x, 2) + 
-                        Math.pow(detection.y - existing.y, 2)
-                    );
-                    
-                    if (distance < 40) {
-                        // Merge detections
-                        existing.confidence = Math.max(existing.confidence, detection.confidence);
-                        existing.types = existing.types || [existing.type];
-                        existing.types.push(detection.type);
-                        merged = true;
-                        break;
-                    }
-                }
-                
-                if (!merged) {
-                    detection.types = [detection.type];
-                    combinedFaces.push(detection);
-                }
-            }
-            
-            return combinedFaces;
-        }
-        
-        function validateFaceRegions(faces) {
-            return faces
-                .filter(face => {
+         let stream = null;
+        let currentFilter = 'none';
+        let animationFrameId = null;
+        let isStreaming = false;
 
-                    const typeCount = face.types ? face.types.length : 1;
-                    const hasMultipleTypes = typeCount >= 2;
-                    const goodConfidence = face.confidence > 0.35;
-                    const reasonableSize = face.width > 30 && face.height > 40 && 
-                                         face.width < 200 && face.height < 250;
-                    
-                    return (hasMultipleTypes || goodConfidence) && reasonableSize;
-                })
-                .sort((a, b) => b.confidence - a.confidence)
-                .slice(0, 2); // Limit to 2 most confident faces
-        }
+        const video = document.getElementById('videoElement');
+        const startBtn = document.getElementById('startCamera');
+        const stopBtn = document.getElementById('stopCamera');
+        const captureBtn = document.getElementById('captureBtn');
+        const filterStatus = document.getElementById('filterStatus');
+        const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+        const faceIndicator = document.getElementById('faceIndicator');
+        const capturedPreview = document.getElementById('capturedPreview');
+        const capturedImage = document.getElementById('capturedImage');
+        const downloadLink = document.getElementById('downloadLink');
+        const closePreview = document.getElementById('closePreview');
+        const filterButtons = document.querySelectorAll('.face-filter');
+
+        const filterNames = {
+            'none': 'Normal',
+            'glasses': 'Kacamata',
+            'mustache': 'Kumis',
+            'hat': 'Topi',
+            'crown': 'Mahkota',
+            'mask': 'Topeng',
+            'blur': 'Blur',
+            'pixel': 'Pixel'
+        };
+
         
-        function isSkinTone(r, g, b) {
-            // Enhanced skin tone detection with multiple criteria
-            const criteria1 = (r > 95 && g > 40 && b > 20 && 
-                             Math.max(r, g, b) - Math.min(r, g, b) > 15 &&
-                             Math.abs(r - g) > 15 && r > g && r > b);
-            
-            const criteria2 = (r > 220 && g > 210 && b > 170) || // Very light skin
-                             (r > 180 && g > 120 && b > 90) ||   // Light skin
-                             (r > 120 && g > 80 && b > 50) ||    // Medium skin
-                             (r > 80 && g > 50 && b > 30);       // Dark skin
-            
-            return criteria1 || criteria2;
-        }
-        
-        function isValidFaceColor(avgR, avgG, avgB) {
-            // Additional validation for face-like colors
-            const brightness = (avgR + avgG + avgB) / 3;
-            const isNotTooDark = brightness > 40;
-            const isNotTooLight = brightness < 240;
-            const hasWarmTone = avgR >= avgG && avgG >= avgB * 0.8;
-            
-            return isNotTooDark && isNotTooLight && hasWarmTone;
-        }
-        
-        function mergeFaceRegions(faces) {
-            if (faces.length === 0) return [];
-            
-            // Sort by confidence
-            faces.sort((a, b) => b.confidence - a.confidence);
-            
-            const merged = [];
-            const used = new Set();
-            
-            for (let i = 0; i < faces.length; i++) {
-                if (used.has(i)) continue;
-                
-                const face = faces[i];
-                const group = [face];
-                used.add(i);
-                
-                // Find nearby faces to merge
-                for (let j = i + 1; j < faces.length; j++) {
-                    if (used.has(j)) continue;
-                    
-                    const other = faces[j];
-                    const distance = Math.sqrt(
-                        Math.pow(face.x - other.x, 2) + 
-                        Math.pow(face.y - other.y, 2)
-                    );
-                    
-                    if (distance < 60) {
-                        group.push(other);
-                        used.add(j);
-                    }
-                }
-                
-                // Create merged face region
-                if (group.length > 0) {
-                    const minX = Math.min(...group.map(f => f.x));
-                    const minY = Math.min(...group.map(f => f.y));
-                    const maxX = Math.max(...group.map(f => f.x + f.width));
-                    const maxY = Math.max(...group.map(f => f.y + f.height));
-                    
-                    merged.push({
-                        x: minX,
-                        y: minY,
-                        width: maxX - minX,
-                        height: maxY - minY,
-                        confidence: Math.max(...group.map(f => f.confidence))
-                    });
-                }
-            }
-            
-            return merged.slice(0, 3); 
+        if (window.elementSdk) {
+            window.elementSdk.init({
+                defaultConfig,
+                onConfigChange: async (config) => {
+                    document.getElementById('appTitle').textContent = '🎭 ' + (config.app_title || defaultConfig.app_title);
+                },
+                mapToCapabilities: (config) => ({
+                    recolorables: [],
+                    borderables: [],
+                    fontEditable: undefined,
+                    fontSizeable: undefined
+                }),
+                mapToEditPanelValues: (config) => new Map([
+                    ['app_title', config.app_title || defaultConfig.app_title]
+                ])
+            });
         }
 
+        // Start Camera
         async function startCamera() {
             try {
-                const constraints = {
+                stream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        width: { ideal: 640, max: 1280 },
-                        height: { ideal: 480, max: 720 },
-                        facingMode: 'user'
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
                     },
                     audio: false
+                });
+
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    video.play();
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    isStreaming = true;
+                    updateUI(true);
+                    renderLoop();
                 };
 
-                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-                videoElement.srcObject = videoStream;
+            } catch (err) {
+                console.error('Camera error:', err);
+                cameraStatus.textContent = '❌ Error: ' + err.message;
                 
-                videoElement.onloadedmetadata = () => {
-                    videoElement.play();
-                    cameraStatus.textContent = '📷 Kamera Aktif';
-                    cameraStatus.className = 'absolute top-4 left-4 bg-green-500/70 text-white px-3 py-1 rounded-full text-sm';
-                    
-                    startFaceDetection();
-                    
-                    document.getElementById('startCamera').disabled = true;
-                    document.getElementById('stopCamera').disabled = false;
-                };
-
-            } catch (error) {
-                let errorMessage = 'Tidak dapat mengakses kamera. ';
-                
-                if (error.name === 'NotAllowedError') {
-                    errorMessage += 'Izin kamera ditolak. Silakan refresh halaman dan berikan izin kamera.';
-                } else if (error.name === 'NotFoundError') {
-                    errorMessage += 'Kamera tidak ditemukan. Pastikan perangkat memiliki kamera.';
-                } else if (error.name === 'NotReadableError') {
-                    errorMessage += 'Kamera sedang digunakan aplikasi lain.';
-                } else {
-                    errorMessage += 'Error: ' + error.message;
+                // Show more specific error messages
+                if (err.name === 'NotAllowedError') {
+                    cameraStatus.textContent = '🚫 Izin kamera ditolak';
+                } else if (err.name === 'NotFoundError') {
+                    cameraStatus.textContent = '📷 Kamera tidak ditemukan';
+                } else if (err.name === 'NotReadableError') {
+                    cameraStatus.textContent = '⚠️ Kamera sedang digunakan';
                 }
-                
-                alert(errorMessage);
-                console.error('Camera error:', error);
-                
-                cameraStatus.textContent = '❌ Kamera Error';
-                cameraStatus.className = 'absolute top-4 left-4 bg-red-500/70 text-white px-3 py-1 rounded-full text-sm';
             }
         }
-        
-        function startFaceDetection() {
-            faceDetectionActive = true;
-            detectionStatus.textContent = '🔍 Deteksi: Aktif';
-            detectionStatus.className = 'absolute top-4 right-4 bg-green-500/70 text-white px-3 py-1 rounded-full text-sm';
-            
 
-            if (isAIReady) {
-                startEmotionAnalysis();
-            }
-            
-            async function detectAndRender() {
-                if (!faceDetectionActive) return;
-                
-                if (isAIReady) {
-                    try {
-                        const aiFaces = await detectFacesWithAI();
-                        if (aiFaces.length > 0) {
-                            detectedFaces = aiFaces;
-                        } else {
-                            detectedFaces = detectFaces();
-                        }
-                    } catch (error) {
-                        console.error('AI detection error, using fallback:', error);
-                        detectedFaces = detectFaces();
-                    }
-                } else {
-                    detectedFaces = detectFaces();
-                }
-
-                if (detectedFaces.length > 0) {
-                    const aiIndicator = isAIReady ? '🤖' : '👤';
-                    detectionStatus.textContent = `${aiIndicator} ${detectedFaces.length} Wajah`;
-                } else {
-                    detectionStatus.textContent = '🔍 Mencari wajah...';
-                }
-                
-                applyFaceFilter(currentFilter);
-                
-                animationFrameId = requestAnimationFrame(detectAndRender);
-            }
-            
-            detectAndRender();
-        }
-
+        // Stop Camera
         function stopCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoElement.srcObject = null;
-                videoStream = null;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            video.srcObject = null;
+            isStreaming = false;
+            
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updateUI(false);
+        }
+
+        // Update UI based on camera state
+        function updateUI(isActive) {
+            if (isActive) {
+                cameraStatus.textContent = '🟢 Kamera Aktif';
+                startBtn.disabled = true;
+                startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                stopBtn.disabled = false;
+                stopBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                captureBtn.disabled = false;
+                captureBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                cameraPlaceholder.classList.add('hidden');
+                video.parentElement.classList.add('camera-active');
                 
-                faceDetectionActive = false;
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                    animationFrameId = null;
+                if (currentFilter !== 'none') {
+                    faceIndicator.classList.remove('hidden');
                 }
-                
+            } else {
                 cameraStatus.textContent = '📷 Kamera Mati';
-                cameraStatus.className = 'absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm';
-                
-                detectionStatus.textContent = '🔍 Deteksi: Mati';
-                detectionStatus.className = 'absolute top-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm';
-                
-                faceOverlay.innerHTML = '';
-                
-                document.getElementById('startCamera').disabled = false;
-                document.getElementById('stopCamera').disabled = true;
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopBtn.disabled = true;
+                stopBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                captureBtn.disabled = true;
+                captureBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                cameraPlaceholder.classList.remove('hidden');
+                video.parentElement.classList.remove('camera-active');
+                faceIndicator.classList.add('hidden');
             }
         }
 
+        // Render Loop for filters
+        function renderLoop() {
+            if (!isStreaming) return;
 
-        function createFilterElement(face, filterType, index) {
-            const filter = document.createElement('div');
-            filter.className = `face-filter-${index}`;
-            filter.style.position = 'absolute';
-            filter.style.pointerEvents = 'none';
-            filter.style.transition = 'all 0.1s ease-out';
-            
-            const videoRect = videoElement.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-            
-            const scaleX = videoRect.width / canvas.width;
-            const scaleY = videoRect.height / canvas.height;
-            
-            const x = face.x * scaleX;
-            const y = face.y * scaleY;
-            const width = face.width * scaleX;
-            const height = face.height * scaleY;
-            
-            switch(filterType) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (currentFilter !== 'none') {
+                applyFilter();
+            }
+
+            animationFrameId = requestAnimationFrame(renderLoop);
+        }
+
+        // Apply selected filter
+        function applyFilter() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const faceWidth = canvas.width * 0.35;
+            const faceHeight = canvas.height * 0.45;
+
+            ctx.save();
+
+            switch (currentFilter) {
                 case 'glasses':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y + height * 0.3}px;
-                            left: ${x + width * 0.1}px;
-                            width: ${width * 0.8}px;
-                            height: ${height * 0.2}px;
-                            background: linear-gradient(45deg, #1f2937, #374151);
-                            border-radius: 50px;
-                            border: 2px solid #6b7280;
-                            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                        ">
-                            <div style="
-                                position: absolute;
-                                top: 50%;
-                                left: 10%;
-                                transform: translateY(-50%);
-                                width: 30%;
-                                height: 70%;
-                                background: rgba(0, 0, 0, 0.7);
-                                border-radius: 50%;
-                            "></div>
-                            <div style="
-                                position: absolute;
-                                top: 50%;
-                                right: 10%;
-                                transform: translateY(-50%);
-                                width: 30%;
-                                height: 70%;
-                                background: rgba(0, 0, 0, 0.7);
-                                border-radius: 50%;
-                            "></div>
-                        </div>
-                    `;
+                    drawGlasses(centerX, centerY - faceHeight * 0.1, faceWidth);
                     break;
-                    
                 case 'mustache':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y + height * 0.6}px;
-                            left: ${x + width * 0.3}px;
-                            width: ${width * 0.4}px;
-                            height: ${height * 0.15}px;
-                            background: #1f2937;
-                            border-radius: 0 0 50px 50px;
-                            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                        "></div>
-                    `;
+                    drawMustache(centerX, centerY + faceHeight * 0.15, faceWidth * 0.5);
                     break;
-                    
                 case 'hat':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y - height * 0.2}px;
-                            left: ${x + width * 0.15}px;
-                            width: ${width * 0.7}px;
-                            height: ${height * 0.4}px;
-                            background: linear-gradient(45deg, #dc2626, #b91c1c);
-                            border-radius: 50% 50% 0 0;
-                            border: 2px solid #991b1b;
-                            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                        ">
-                            <div style="
-                                position: absolute;
-                                top: 100%;
-                                left: 50%;
-                                transform: translateX(-50%);
-                                width: 90%;
-                                height: 20%;
-                                background: #991b1b;
-                                border-radius: 50%;
-                            "></div>
-                        </div>
-                    `;
+                    drawHat(centerX, centerY - faceHeight * 0.45, faceWidth);
                     break;
-                    
-                case 'mask':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y + height * 0.25}px;
-                            left: ${x + width * 0.1}px;
-                            width: ${width * 0.8}px;
-                            height: ${height * 0.5}px;
-                            background: linear-gradient(45deg, #7c3aed, #a855f7);
-                            border-radius: 20px;
-                            border: 2px solid #6d28d9;
-                            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
-                        ">
-                            <div style="
-                                position: absolute;
-                                top: 30%;
-                                left: 20%;
-                                width: 15%;
-                                height: 20%;
-                                background: #000;
-                                border-radius: 50%;
-                            "></div>
-                            <div style="
-                                position: absolute;
-                                top: 30%;
-                                right: 20%;
-                                width: 15%;
-                                height: 20%;
-                                background: #000;
-                                border-radius: 50%;
-                            "></div>
-                        </div>
-                    `;
-                    break;
-                    
                 case 'crown':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y - height * 0.3}px;
-                            left: ${x + width * 0.2}px;
-                            width: ${width * 0.6}px;
-                            height: ${height * 0.3}px;
-                            background: linear-gradient(45deg, #fbbf24, #f59e0b);
-                            border: 2px solid #d97706;
-                            box-shadow: 0 2px 10px rgba(251, 191, 36, 0.3);
-                        ">
-                            <div style="
-                                position: absolute;
-                                top: 0;
-                                left: 10%;
-                                width: 0;
-                                height: 0;
-                                border-left: ${width * 0.08}px solid transparent;
-                                border-right: ${width * 0.08}px solid transparent;
-                                border-bottom: ${height * 0.15}px solid #fbbf24;
-                            "></div>
-                            <div style="
-                                position: absolute;
-                                top: 0;
-                                left: 50%;
-                                transform: translateX(-50%);
-                                width: 0;
-                                height: 0;
-                                border-left: ${width * 0.1}px solid transparent;
-                                border-right: ${width * 0.1}px solid transparent;
-                                border-bottom: ${height * 0.2}px solid #fbbf24;
-                            "></div>
-                            <div style="
-                                position: absolute;
-                                top: 0;
-                                right: 10%;
-                                width: 0;
-                                height: 0;
-                                border-left: ${width * 0.08}px solid transparent;
-                                border-right: ${width * 0.08}px solid transparent;
-                                border-bottom: ${height * 0.15}px solid #fbbf24;
-                            "></div>
-                        </div>
-                    `;
+                    drawCrown(centerX, centerY - faceHeight * 0.5, faceWidth * 0.8);
                     break;
-                    
+                case 'mask':
+                    drawMask(centerX, centerY, faceWidth);
+                    break;
                 case 'blur':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y}px;
-                            left: ${x}px;
-                            width: ${width}px;
-                            height: ${height}px;
-                            background: rgba(255, 255, 255, 0.3);
-                            backdrop-filter: blur(15px);
-                            -webkit-backdrop-filter: blur(15px);
-                            border-radius: 50%;
-                            border: 2px solid rgba(255, 255, 255, 0.2);
-                            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-                        ">
-                            <div style="
-                                position: absolute;
-                                top: 50%;
-                                left: 50%;
-                                transform: translate(-50%, -50%);
-                                color: rgba(255, 255, 255, 0.8);
-                                font-size: ${Math.min(width, height) * 0.15}px;
-                                font-weight: bold;
-                                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-                            ">🫥</div>
-                        </div>
-                    `;
+                    drawBlurEffect(centerX, centerY, faceWidth * 0.7);
                     break;
-                    
-                case 'censor':
-                    filter.innerHTML = `
-                        <div style="
-                            position: absolute;
-                            top: ${y}px;
-                            left: ${x}px;
-                            width: ${width}px;
-                            height: ${height}px;
-                            background: #000000;
-                            border-radius: 10px;
-                            border: 3px solid #333333;
-                            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                        ">
-                            <div style="
-                                color: #ffffff;
-                                font-size: ${Math.min(width, height) * 0.12}px;
-                                font-weight: bold;
-                                text-align: center;
-                                font-family: Arial, sans-serif;
-                            ">SENSOR</div>
-                        </div>
-                    `;
+                case 'pixel':
+                    drawPixelEffect(centerX, centerY, faceWidth * 0.7);
                     break;
             }
-            
-            return filter;
+
+            ctx.restore();
         }
 
-        // Face filter functions
-        function applyFaceFilter(filterType) {
-            // Clear existing filters
-            faceOverlay.innerHTML = '';
-            
-            // Remove active state from all buttons
-            document.querySelectorAll('.face-filter').forEach(btn => {
-                btn.classList.remove('filter-active');
+        // Draw cool glasses
+        function drawGlasses(x, y, width) {
+            const glassWidth = width * 0.35;
+            const glassHeight = width * 0.2;
+            const gap = width * 0.08;
+
+            // Frame gradient
+            const gradient = ctx.createLinearGradient(x - width/2, y, x + width/2, y);
+            gradient.addColorStop(0, '#1a1a2e');
+            gradient.addColorStop(0.5, '#16213e');
+            gradient.addColorStop(1, '#1a1a2e');
+
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+
+            // Left lens
+            ctx.beginPath();
+            ctx.roundRect(x - glassWidth - gap, y - glassHeight/2, glassWidth, glassHeight, 15);
+            ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+            ctx.fill();
+            ctx.stroke();
+
+            // Right lens
+            ctx.beginPath();
+            ctx.roundRect(x + gap, y - glassHeight/2, glassWidth, glassHeight, 15);
+            ctx.fill();
+            ctx.stroke();
+
+            // Bridge
+            ctx.beginPath();
+            ctx.moveTo(x - gap, y);
+            ctx.lineTo(x + gap, y);
+            ctx.stroke();
+
+            // Temples
+            ctx.beginPath();
+            ctx.moveTo(x - glassWidth - gap, y);
+            ctx.lineTo(x - width * 0.55, y - 10);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(x + gap + glassWidth, y);
+            ctx.lineTo(x + width * 0.55, y - 10);
+            ctx.stroke();
+
+            // Lens shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.beginPath();
+            ctx.ellipse(x - glassWidth/2 - gap, y - glassHeight * 0.2, glassWidth * 0.15, glassHeight * 0.15, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + gap + glassWidth/2, y - glassHeight * 0.2, glassWidth * 0.15, glassHeight * 0.15, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw fancy mustache
+        function drawMustache(x, y, width) {
+            ctx.fillStyle = '#2d1810';
+            ctx.strokeStyle = '#1a0f0a';
+            ctx.lineWidth = 2;
+
+            // Left side
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.bezierCurveTo(x - width * 0.3, y - 15, x - width * 0.6, y - 25, x - width, y - 10);
+            ctx.bezierCurveTo(x - width * 0.8, y + 5, x - width * 0.4, y + 15, x, y + 5);
+            ctx.fill();
+            ctx.stroke();
+
+            // Right side
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.bezierCurveTo(x + width * 0.3, y - 15, x + width * 0.6, y - 25, x + width, y - 10);
+            ctx.bezierCurveTo(x + width * 0.8, y + 5, x + width * 0.4, y + 15, x, y + 5);
+            ctx.fill();
+            ctx.stroke();
+
+            // Curly tips
+            ctx.beginPath();
+            ctx.arc(x - width - 5, y - 15, 8, 0, Math.PI * 1.5);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + width + 5, y - 15, 8, Math.PI * 0.5, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw top hat
+        function drawHat(x, y, width) {
+            const hatWidth = width * 0.9;
+            const hatHeight = width * 0.6;
+
+            // Hat shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(x, y + hatHeight * 0.1 + 5, hatWidth * 0.65, hatHeight * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Hat body gradient
+            const gradient = ctx.createLinearGradient(x, y - hatHeight, x, y);
+            gradient.addColorStop(0, '#2d2d2d');
+            gradient.addColorStop(0.5, '#1a1a1a');
+            gradient.addColorStop(1, '#0d0d0d');
+
+            // Main hat body
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(x - hatWidth * 0.35, y);
+            ctx.lineTo(x - hatWidth * 0.3, y - hatHeight);
+            ctx.lineTo(x + hatWidth * 0.3, y - hatHeight);
+            ctx.lineTo(x + hatWidth * 0.35, y);
+            ctx.closePath();
+            ctx.fill();
+
+            // Hat top
+            ctx.beginPath();
+            ctx.ellipse(x, y - hatHeight, hatWidth * 0.3, hatHeight * 0.12, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#3d3d3d';
+            ctx.fill();
+
+            // Brim
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.ellipse(x, y, hatWidth * 0.6, hatHeight * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Band
+            ctx.fillStyle = '#8B0000';
+            ctx.fillRect(x - hatWidth * 0.35, y - hatHeight * 0.25, hatWidth * 0.7, hatHeight * 0.12);
+
+            // Shine
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(x - hatWidth * 0.25, y - hatHeight * 0.9, hatWidth * 0.1, hatHeight * 0.6);
+        }
+
+        // Draw crown
+        function drawCrown(x, y, width) {
+            const crownHeight = width * 0.5;
+
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.beginPath();
+            ctx.ellipse(x, y + crownHeight + 10, width * 0.55, crownHeight * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Crown body gradient
+            const gradient = ctx.createLinearGradient(x, y - crownHeight, x, y + crownHeight * 0.3);
+            gradient.addColorStop(0, '#FFD700');
+            gradient.addColorStop(0.5, '#FFA500');
+            gradient.addColorStop(1, '#B8860B');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(x - width * 0.5, y + crownHeight * 0.3);
+            ctx.lineTo(x - width * 0.45, y - crownHeight * 0.3);
+            ctx.lineTo(x - width * 0.3, y);
+            ctx.lineTo(x - width * 0.15, y - crownHeight);
+            ctx.lineTo(x, y - crownHeight * 0.2);
+            ctx.lineTo(x + width * 0.15, y - crownHeight);
+            ctx.lineTo(x + width * 0.3, y);
+            ctx.lineTo(x + width * 0.45, y - crownHeight * 0.3);
+            ctx.lineTo(x + width * 0.5, y + crownHeight * 0.3);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#B8860B';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Jewels
+            const jewels = [
+                { cx: x, cy: y - crownHeight * 0.6, color: '#DC143C' },
+                { cx: x - width * 0.25, cy: y - crownHeight * 0.15, color: '#4169E1' },
+                { cx: x + width * 0.25, cy: y - crownHeight * 0.15, color: '#32CD32' }
+            ];
+
+            jewels.forEach(jewel => {
+                ctx.beginPath();
+                ctx.arc(jewel.cx, jewel.cy, width * 0.06, 0, Math.PI * 2);
+                ctx.fillStyle = jewel.color;
+                ctx.fill();
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Jewel shine
+                ctx.beginPath();
+                ctx.arc(jewel.cx - 3, jewel.cy - 3, width * 0.02, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fill();
             });
 
-            // Update current filter
-            currentFilter = filterType;
+            // Base band
+            ctx.fillStyle = '#B8860B';
+            ctx.fillRect(x - width * 0.5, y + crownHeight * 0.15, width, crownHeight * 0.15);
+        }
+
+        // Draw carnival mask
+        function drawMask(x, y, width) {
+            const maskHeight = width * 0.4;
+
+            // Mask gradient
+            const gradient = ctx.createLinearGradient(x - width/2, y, x + width/2, y);
+            gradient.addColorStop(0, '#9333EA');
+            gradient.addColorStop(0.5, '#EC4899');
+            gradient.addColorStop(1, '#9333EA');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(x, y - maskHeight * 0.1, width * 0.55, maskHeight, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eye holes
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.beginPath();
+            ctx.ellipse(x - width * 0.2, y - maskHeight * 0.15, width * 0.12, maskHeight * 0.25, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(x + width * 0.2, y - maskHeight * 0.15, width * 0.12, maskHeight * 0.25, 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Decorations
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 3;
             
-            // Add active state to clicked button if event exists
-            if (event && event.target) {
-                event.target.classList.add('filter-active');
+            // Swirls
+            for (let i = -1; i <= 1; i += 2) {
+                ctx.beginPath();
+                ctx.arc(x + i * width * 0.35, y - maskHeight * 0.3, width * 0.08, 0, Math.PI * 1.5);
+                ctx.stroke();
             }
-            
-            // Apply filters to detected faces
-            if (filterType !== 'none' && detectedFaces.length > 0) {
-                detectedFaces.forEach((face, index) => {
-                    const filterElement = createFilterElement(face, filterType, index);
-                    faceOverlay.appendChild(filterElement);
-                });
+
+            // Top feather decorations
+            ctx.fillStyle = '#FFD700';
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.ellipse(x + i * width * 0.12, y - maskHeight * 1.1, 8, 25, i * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Glitter dots
+            ctx.fillStyle = '#FFD700';
+            for (let i = 0; i < 12; i++) {
+                const dotX = x + (Math.random() - 0.5) * width * 0.9;
+                const dotY = y - maskHeight * 0.1 + (Math.random() - 0.5) * maskHeight * 1.5;
+                ctx.beginPath();
+                ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
+
+        // Draw blur effect
+        function drawBlurEffect(x, y, radius) {
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.6)';
+            ctx.filter = 'blur(20px)';
+            ctx.beginPath();
+            ctx.ellipse(x, y, radius, radius * 1.3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.filter = 'none';
+
+            // Border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.ellipse(x, y, radius, radius * 1.3, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Draw pixel effect
+        function drawPixelEffect(x, y, radius) {
+            const pixelSize = 15;
+            const startX = x - radius;
+            const startY = y - radius * 1.3;
+            const endX = x + radius;
+            const endY = y + radius * 1.3;
+
+            for (let px = startX; px < endX; px += pixelSize) {
+                for (let py = startY; py < endY; py += pixelSize) {
+                    // Check if pixel is within ellipse
+                    const dx = (px - x) / radius;
+                    const dy = (py - y) / (radius * 1.3);
+                    if (dx * dx + dy * dy <= 1) {
+                        const hue = Math.random() * 360;
+                        ctx.fillStyle = `hsla(${hue}, 70%, 50%, 0.7)`;
+                        ctx.fillRect(px, py, pixelSize - 1, pixelSize - 1);
+                    }
+                }
+            }
+        }
+
+        // Capture photo
+        function capturePhoto() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Draw video frame
+            tempCtx.drawImage(video, 0, 0);
+
+            // Draw filter overlay
+            if (currentFilter !== 'none') {
+                tempCtx.drawImage(canvas, 0, 0);
+            }
+
+            // Create image
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            capturedImage.src = dataUrl;
+            downloadLink.href = dataUrl;
+            capturedPreview.classList.remove('hidden');
+            
+            // Scroll to preview
+            capturedPreview.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+        captureBtn.addEventListener('click', capturePhoto);
+        closePreview.addEventListener('click', () => {
+            capturedPreview.classList.add('hidden');
+        });
+
+        // Filter selection
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+                filterStatus.textContent = '🎭 Filter: ' + filterNames[currentFilter];
+                
+                if (isStreaming) {
+                    if (currentFilter !== 'none') {
+                        faceIndicator.classList.remove('hidden');
+                    } else {
+                        faceIndicator.classList.add('hidden');
+                    }
+                }
+            });
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }})
+
+        init();
 
         // Audio functions with real-time voice effects
         let gainNode = null;
@@ -1051,6 +1073,8 @@
         let feedbackGain = null;
         let outputGain = null;
         let isRealTimeActive = false;
+        let recognition = null;
+        let isHolding = false;
 
         async function startRecording() {
             try {
@@ -1078,8 +1102,6 @@
                 delayNode.connect(outputGain);
                 outputGain.connect(analyser);
                 
-                // Connect to speakers for real-time monitoring (optional)
-                // outputGain.connect(audioContext.destination);
                 
                 // Setup visualization
                 analyser.fftSize = 256;
@@ -1428,6 +1450,139 @@
                 showEffectMessage('🔇 Monitor suara dimatikan');
             }
         }
+function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                showMessage('Speech recognition tidak didukung di browser ini.');
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onresult = async (event) => {
+                const transcript = event.results[event.results.length - 1][0].transcript;
+                document.getElementById('originalText').innerHTML = `<span>${transcript}</span>`;
+                
+                if (event.results[event.results.length - 1].isFinal) {
+                    await translateText(transcript, selectedLanguage);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    showMessage('Tidak ada suara terdeteksi. Coba lagi.');
+                } else if (event.error === 'aborted') {
+                    // Ignore aborted errors
+                } else {
+                    showMessage('Error: ' + event.error);
+                }
+            };
+
+            recognition.onend = () => {
+                document.getElementById('holdStatus').textContent = '';
+            };
+        }
+
+        async function translateText(text, targetLang) {
+            document.getElementById('translatedText').innerHTML = '<span class="opacity-50">Menerjemahkan...</span>';
+            
+            try {
+                const langCode = targetLang.split('-')[0];
+                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=id|${langCode}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.responseStatus === 200 || data.responseData) {
+                    const translatedText = data.responseData.translatedText;
+                    document.getElementById('translatedText').innerHTML = `<span>${translatedText}</span>`;
+                } else {
+                    throw new Error('Translation failed');
+                }
+            } catch (error) {
+                document.getElementById('translatedText').innerHTML = '<span class="text-red-400">⚠️ Terjemahan gagal. Coba lagi.</span>';
+                console.error('Translation error:', error);
+            }
+        }
+
+        function showMessage(message) {
+            document.getElementById('holdStatus').textContent = message;
+            setTimeout(() => {
+                document.getElementById('holdStatus').textContent = '';
+            }, 3000);
+        }
+
+        document.querySelectorAll('.language-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                selectedLanguage = button.dataset.lang;
+                document.querySelectorAll('.language-btn').forEach(btn => btn.classList.remove('active', 'ring-2', 'ring-white'));
+                button.classList.add('active', 'ring-2', 'ring-white');
+            });
+        });
+
+        const holdButton = document.getElementById('holdToSpeak');
+        
+        holdButton.addEventListener('mousedown', () => {
+            if (!recognition) initSpeechRecognition();
+            
+            isHolding = true;
+            holdButton.classList.add('hold-indicator');
+            document.getElementById('holdStatus').textContent = '🎤 Mendengarkan...';
+            
+            try {
+                recognition.lang = 'id-ID';
+                recognition.start();
+            } catch (error) {
+                showMessage('Error memulai recognition');
+            }
+        });
+
+        holdButton.addEventListener('mouseup', () => {
+            isHolding = false;
+            holdButton.classList.remove('hold-indicator');
+            
+            if (recognition) {
+                recognition.stop();
+            }
+        });
+
+        holdButton.addEventListener('mouseleave', () => {
+            if (isHolding) {
+                isHolding = false;
+                holdButton.classList.remove('hold-indicator');
+                if (recognition) recognition.stop();
+            }
+        });
+
+        holdButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!recognition) initSpeechRecognition();
+            
+            isHolding = true;
+            holdButton.classList.add('hold-indicator');
+            document.getElementById('holdStatus').textContent = '🎤 Mendengarkan...';
+            
+            try {
+                recognition.lang = 'id-ID';
+                recognition.start();
+            } catch (error) {
+                showMessage('Error memulai recognition');
+            }
+        });
+
+        holdButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            isHolding = false;
+            holdButton.classList.remove('hold-indicator');
+            
+            if (recognition) {
+                recognition.stop();
+            }
+        });
 
         document.getElementById('startCamera').addEventListener('click', startCamera);
         document.getElementById('stopCamera').addEventListener('click', stopCamera);

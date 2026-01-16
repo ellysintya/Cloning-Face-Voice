@@ -81,81 +81,61 @@
                 </div>
             </div>
 
-        
-            <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
-                <h2 class="text-2xl font-bold text-white mb-4 flex items-center">
-                    🎤 Filter Suara
-                </h2>
-
-            
-                <div class="bg-gray-800 rounded-xl p-4 mb-4">
-                    <canvas id="audioCanvas" width="400" height="100" class="w-full h-24 rounded"></canvas>
-                </div>
-
-            
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                    <button id="startRecording" class="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold transition-all">
-                        🎙️ Mulai Rekam
-                    </button>
-                    <button id="stopRecording" class="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold transition-all" disabled>
-                        ⏹️ Stop Rekam
-                    </button>
-                    <button id="startMonitoring" class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold transition-all">
-                        🎧 Monitor Suara
-                    </button>
-                    <button id="stopMonitoring" class="bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-xl font-semibold transition-all" disabled>
-                        🔇 Stop Monitor
-                    </button>
-                </div>
-
-            
-                <div class="mb-4">
-                    <label class="block text-white font-semibold mb-2">🎛️ Efek Suara:</label>
-                    <div class="grid grid-cols-2 gap-3">
-                        <button class="voice-effect bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="normal">
-                            😊 Normal
-                        </button>
-                        <button class="voice-effect bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="robot">
-                            🤖 Robot
-                        </button>
-                        <button class="voice-effect bg-pink-600 hover:bg-pink-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="chipmunk">
-                            🎭 Kartun
-                        </button>
-                        <button class="voice-effect bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="deep">
-                            👹 Setan
-                        </button>
+           <div id="app">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 mb-6">
+                    <h2 id="mainTitle" class="text-2xl font-bold text-white mb-4 flex items-center">🎤 Filter Suara</h2>
+                    <div class="bg-gray-800 rounded-xl p-4 mb-4">
+                        <canvas id="audioCanvas" width="400" height="100" class="w-full h-24 rounded"></canvas>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mb-4"><button id="startRecording" class="bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-semibold transition-all"> 🎙️ Mulai Rekam </button> <button id="stopRecording" class="bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-xl font-semibold transition-all" disabled> ⏹️ Stop Rekam </button> <button id="startMonitoring" class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-semibold transition-all"> 🎧 Monitor Suara </button> <button id="stopMonitoring" class="bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-xl font-semibold transition-all" disabled> 🔇 Stop Monitor </button>
+                    </div>
+                    <div class="mb-4"><label class="block text-white font-semibold mb-2">🎛️ Efek Suara:</label>
+                        <div class="grid grid-cols-2 gap-3"><button class="voice-effect bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="normal"> 😊 Normal </button> <button class="voice-effect bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="robot"> 🤖 Robot </button> <button class="voice-effect bg-pink-600 hover:bg-pink-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="chipmunk"> 🎭 Kartun </button> <button class="voice-effect bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg transition-all" data-effect="deep"> 👹 Setan </button>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div><label class="block text-white font-semibold mb-2">🔊 Volume: <span id="volumeValue">50</span>%</label> <input type="range" id="volumeSlider" min="0" max="100" value="50" class="w-full">
+                        </div>
+                        <div><label class="block text-white font-semibold mb-2">⚡ Pitch: <span id="pitchValue">1.0</span>x</label> <input type="range" id="pitchSlider" min="0.5" max="2.0" step="0.1" value="1.0" class="w-full">
+                        </div>
+                    </div>
+                    <div id="audioPlayer" class="hidden mt-4 p-4 bg-gray-800 rounded-xl">
+                        <p class="text-white mb-2">🎵 Rekaman Anda:</p>
+                        <audio id="recordedAudio" controls class="w-full mb-3"></audio><button id="downloadAudio" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition-all"> 💾 Download Audio </button>
                     </div>
                 </div>
-
-                <!-- Audio Controls -->
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-white font-semibold mb-2">🔊 Volume: <span id="volumeValue">50</span>%</label>
-                        <input type="range" id="volumeSlider" min="0" max="100" value="50" class="w-full">
+                <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
+                    <h2 id="translationTitle" class="text-2xl font-bold text-white mb-4 flex items-center">🌍 Terjemahan Suara</h2>
+                    <div class="mb-4"><label class="block text-white font-semibold mb-2">🗣️ Pilih Bahasa Target:</label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <button class="language-btn bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-all" data-lang="en-US"> 🇺🇸 English </button> 
+                            <button class="language-btn bg-red-600 hover:bg-red-700 text-white py-2 px-3 rounded-lg transition-all" data-lang="zh-CN"> 🇨🇳 中文 </button> 
+                            <button class="language-btn bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg transition-all" data-lang="ko-KR"> 🇰🇷 한국어 </button> 
+                            <button class="language-btn bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg transition-all" data-lang="id-ID"> 🇮🇩 Indonesia </button> 
+                            <button class="language-btn bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-3 rounded-lg transition-all" data-lang="th-TH"> 🇹🇭 ไทย </button> <button class="language-btn bg-pink-600 hover:bg-pink-700 text-white py-2 px-3 rounded-lg transition-all" data-lang="ja-JP"> 🇯🇵 日本語 </button>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-white font-semibold mb-2">⚡ Pitch: <span id="pitchValue">1.0</span>x</label>
-                        <input type="range" id="pitchSlider" min="0.5" max="2.0" step="0.1" value="1.0" class="w-full">
+                    <div class="mb-4"><button id="holdToSpeak" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-4 px-6 rounded-xl font-bold text-lg transition-all"> 🎤 Tahan untuk Berbicara </button>
+                        <p id="holdStatus" class="text-white text-center mt-2 text-sm opacity-70"></p>
                     </div>
-                </div>
-
-                <!-- Audio Player -->
-                <div id="audioPlayer" class="hidden mt-4 p-4 bg-gray-800 rounded-xl">
-                    <p class="text-white mb-2">🎵 Rekaman Anda:</p>
-                    <audio id="recordedAudio" controls class="w-full mb-3"></audio>
-                    <button id="downloadAudio" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition-all">
-                        💾 Download Audio
-                    </button>
+                    <div class="bg-gray-800 rounded-xl p-4">
+                        <p class="text-white font-semibold mb-2">📝 Teks Asli:</p>
+                        <div id="originalText" class="bg-gray-700 rounded-lg p-3 mb-3 text-white min-h-16"><span class="opacity-50">Teks akan muncul di sini...</span>
+                        </div>
+                        <p class="text-white font-semibold mb-2">🌐 Terjemahan:</p>
+                        <div id="translatedText" class="bg-gray-700 rounded-lg p-3 text-white min-h-16"><span class="opacity-50">Terjemahan akan muncul di sini...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-
+        </div>
             <!-- AI Hugging Face Section -->
             <div class="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
                 <h2 class="text-2xl font-bold text-white mb-4 flex items-center">
                     🤖 AI Hugging Face
                 </h2>
 
-                <!-- AI Status -->
                 <div class="bg-gray-800 rounded-xl p-4 mb-4">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-white font-semibold">Status AI:</span>
@@ -166,7 +146,6 @@
                     </div>
                 </div>
 
-                <!-- Face Analysis -->
                 <div class="mb-6">
                     <h3 class="text-lg font-semibold text-white mb-3">👤 Analisis Wajah AI</h3>
                     <div class="bg-gray-800 rounded-xl p-4 mb-3">
@@ -179,7 +158,6 @@
                     </button>
                 </div>
 
-                <!-- Emotion Detection -->
                 <div class="mb-6">
                     <h3 class="text-lg font-semibold text-white mb-3">😊 Deteksi Emosi</h3>
                     <div class="bg-gray-800 rounded-xl p-4 mb-3">
@@ -205,7 +183,6 @@
                     </div>
                 </div>
 
-                <!-- AI Voice Analysis -->
                 <div class="mb-6">
                     <h3 class="text-lg font-semibold text-white mb-3">🎤 Analisis Suara AI</h3>
                     <div class="bg-gray-800 rounded-xl p-4 mb-3">
@@ -218,7 +195,6 @@
                     </button>
                 </div>
 
-                <!-- AI Recommendations -->
                 <div class="mb-6">
                     <h3 class="text-lg font-semibold text-white mb-3">💡 Rekomendasi AI</h3>
                     <div id="aiRecommendations" class="bg-gray-800 rounded-xl p-4 text-gray-300 text-sm">
@@ -226,7 +202,6 @@
                     </div>
                 </div>
 
-                <!-- AI Models -->
                 <div>
                     <h3 class="text-lg font-semibold text-white mb-3">🧠 Model AI</h3>
                     <div class="space-y-2 text-sm">
@@ -289,6 +264,3 @@
   <script src="fake_face.js"></script>
 </body>
 </html>
-
-
-
